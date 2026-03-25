@@ -1,0 +1,39 @@
+{
+  "occupancy_rate": {
+    "critical_low": 0.5,
+    "warning_low": 0.75,
+    "healthy": 0.85,
+    "excellent": 0.9
+  },
+  "brand_trust": {
+    "critical_low": 20,
+    "warning_low": 40,
+    "healthy": 60,
+    "excellent": 80
+  },
+  "brand_vitality": {
+    "critical_low": 30,
+    "warning_low": 50,
+    "healthy": 70
+  },
+  "days_cash_on_hand": {
+    "critical_low": 90,
+    "warning_low": 180,
+    "healthy": 365
+  },
+  "run_rate_pressure": {
+    "healthy": 0.3,
+    "warning_high": 0.5,
+    "critical_high": 0.8
+  },
+  "operational_capability": {
+    "critical_low": 30,
+    "warning_low": 50,
+    "healthy": 70
+  },
+  "depletion_probability": {
+    "acceptable": 0.05,
+    "warning": 0.1,
+    "unacceptable": 0.2
+  }
+}

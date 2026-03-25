@@ -1,0 +1,80 @@
+{
+  "taikang_yanpark": {
+    "name": "泰康燕園",
+    "location": "北京",
+    "model": "insurance_bundled",
+    "deposit_twd_wan": 0,
+    "monthly_fee_twd_wan": 15,
+    "capacity": 1500,
+    "year_opened": 2015,
+    "occupancy_trajectory": {
+      "year_1": 0.5,
+      "year_2": 0.99,
+      "year_3": 1.0
+    },
+    "notes": "保險綁定200萬RMB保單即可入住，不到2年99.7%，二期預約滿"
+  },
+  "friendship_village": {
+    "name": "Friendship Village",
+    "location": "美國密蘇里",
+    "model": "entrance_fee_refundable",
+    "deposit_twd_wan": 2500,
+    "monthly_fee_twd_wan": 12,
+    "capacity": 700,
+    "year_opened": 1978,
+    "occupancy_trajectory": {
+      "pre_covid": 0.93,
+      "year_2021": 0.85,
+      "year_2022": 0.78,
+      "bankruptcy": 2023
+    },
+    "notes": "COVID前93%，之後擠兌螺旋，2023年破產"
+  },
+  "the_clare": {
+    "name": "The Clare",
+    "location": "美國芝加哥",
+    "model": "entrance_fee",
+    "deposit_twd_wan": 3000,
+    "monthly_fee_twd_wan": 15,
+    "capacity": 248,
+    "year_opened": 2008,
+    "occupancy_trajectory": {
+      "year_1": 0.2,
+      "year_2": 0.28,
+      "year_3": 0.34,
+      "post_restructure": 0.98
+    },
+    "notes": "2008金融海嘯開業，三年34%，重組後恢復至98%"
+  },
+  "chang_gung_village": {
+    "name": "長庚養生文化村",
+    "location": "台灣桃園",
+    "model": "low_deposit_rental",
+    "deposit_twd_wan": 30,
+    "monthly_fee_twd_wan": 3.5,
+    "capacity": 1352,
+    "year_opened": 2005,
+    "occupancy_trajectory": {
+      "year_10": 0.7,
+      "year_15": 0.9,
+      "year_20": 1.0
+    },
+    "breakeven_year": 20,
+    "notes": "20年才損益兩平，但最終滿住"
+  },
+  "runfu": {
+    "name": "潤福生活新象",
+    "location": "台灣淡水",
+    "model": "high_deposit",
+    "deposit_twd_wan": 1000,
+    "monthly_fee_twd_wan": 2.7,
+    "capacity": 300,
+    "year_opened": 1997,
+    "occupancy_trajectory": {
+      "year_5": 0.8,
+      "year_10": 0.95,
+      "current": 0.98
+    },
+    "notes": "高押金低月費模式，28年穩定運營"
+  }
+}
