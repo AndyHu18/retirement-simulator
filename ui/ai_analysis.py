@@ -9,17 +9,25 @@ from engine.monte_carlo import compute_percentiles, calculate_summary_metrics
 
 
 def _load_api_key() -> str:
-    """從環境變數或 .env 檔讀取 API key"""
+    """從 Streamlit secrets、環境變數或 .env 檔讀取 API key"""
+    # 1. Streamlit Cloud secrets（部署時用）
+    try:
+        key = st.secrets.get('ANTHROPIC_API_KEY', '')
+        if key:
+            return key
+    except Exception:
+        pass
+    # 2. 環境變數
     key = os.environ.get('ANTHROPIC_API_KEY', '')
     if key:
         return key
-    # 嘗試從 .env 讀取
+    # 3. .env 檔（本機開發用）
     env_path = Path(__file__).resolve().parent.parent / '.env'
     if env_path.exists():
         for line in env_path.read_text().strip().splitlines():
             line = line.strip()
             if line.startswith('ANTHROPIC_API_KEY='):
-                key = line.split('=', 1)[1].strip()
+                key = line.split('=', 1)[1].strip().strip('"')
                 os.environ['ANTHROPIC_API_KEY'] = key
                 return key
     return ''
