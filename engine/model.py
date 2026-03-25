@@ -216,12 +216,18 @@ class AgeStructure:
 
     @property
     def brand_vitality_index(self) -> float:
+        return self.calc_brand_vitality()
+
+    def calc_brand_vitality(self, decay_reduction: float = 0.0) -> float:
+        """品牌活力指數，支援老化對抗減幅"""
         ages = self.get_current_ages()
         if not ages:
             return 100.0
         median = np.median(ages)
         pct_over_80 = sum(1 for a in ages if a > 80) / len(ages)
-        return max(0, 100 - max(0, median - 70) * 5 - pct_over_80 * 100)
+        base_decay = max(0, median - 70) * 5 + pct_over_80 * 100
+        modified_decay = base_decay * (1 - min(0.70, decay_reduction))
+        return max(0, 100 - modified_decay)
 
 
 # ============================================================
@@ -438,6 +444,17 @@ def simulation_step(state: SimState, params: SimParams, t: int,
             if 'brand_trust_shock' in so and t == trigger_q:
                 brand_trust_shock = so['brand_trust_shock']
 
+    # v2: 保險通路上線時間 — 未上線前 insurance_factor 為 1.0
+    effective_insurance = params.insurance_factor if t >= params.insurance_start_quarter else 1.0
+
+    # v2: 行銷預算改善距離摩擦
+    effective_friction = min(0.95, params.distance_friction + params.marketing_budget_monthly / 10_000_000 * 0.02)
+
+    # v2: 競品衝擊
+    competitor_active = (params.competitor_entry and t >= params.competitor_year * 4)
+    if competitor_active and t == params.competitor_year * 4:
+        state.brand_trust.value = max(0, state.brand_trust.value - params.competitor_brand_shock)
+
     # 1. 計算各存量的流入流出
     total_new_ins = 0.0
     total_exits = 0.0
@@ -449,12 +466,22 @@ def simulation_step(state: SimState, params: SimParams, t: int,
             phase=phase,
             all_phases=state.phases,
             brand_trust=state.brand_trust.value,
-            insurance_factor=params.insurance_factor,
+            insurance_factor=effective_insurance,
             experience_level=params.experience_level,
             macro_shock=effective_macro,
-            distance_friction=params.distance_friction,
+            distance_friction=effective_friction,
             params=params,
         )
+        # v2: 體驗行銷轉化加成
+        new_ins *= params.conversion_boost
+        # v2: 醫療設施入住率加成
+        new_ins *= params.medical_occupancy_boost
+        # v2: 溫泉品牌差異化加成
+        new_ins *= (1.0 + params.brand_differentiation_boost)
+        # v2: 競品分流
+        if competitor_active:
+            new_ins *= (1.0 - params.competitor_diversion_rate)
+
         new_ins *= new_move_in_multiplier
         exits = calc_exits(phase)
 
@@ -466,6 +493,10 @@ def simulation_step(state: SimState, params: SimParams, t: int,
         phase.last_exits = exits
         phase.occupied = max(0, phase.occupied + new_ins - exits)
         phase.avg_resident_age += 0.25
+        # v2: 新住戶年齡降低（老化對抗措施）
+        if new_ins > 0 and params.new_resident_avg_age_reduction > 0:
+            age_reduction_effect = params.new_resident_avg_age_reduction * new_ins / max(1, phase.occupied)
+            phase.avg_resident_age = max(55, phase.avg_resident_age - age_reduction_effect)
 
         total_new_ins += new_ins
         total_exits += exits
@@ -481,9 +512,15 @@ def simulation_step(state: SimState, params: SimParams, t: int,
     total_occupied = state.total_occupied
     occupancy_rate = state.overall_occupancy_rate
 
-    monthly_fees = total_occupied * params.monthly_fee * 3  # 季度化
-    new_deposits = total_new_ins * params.deposit_amount
-    refund_requests = total_exits * params.deposit_amount * params.refund_percentage
+    monthly_fees = total_occupied * params.monthly_fee * params.monthly_fee_multiplier * 3
+    new_deposits = total_new_ins * params.deposit_amount * params.deposit_amount_multiplier
+    # v2: 漸進償卻模式 — 退費義務隨時間遞減
+    if params.amortization_years > 0:
+        avg_years_in = t / 4 / 2  # 粗略平均居住年數
+        amort_factor = max(0, params.refund_percentage * (1 - avg_years_in / params.amortization_years))
+        refund_requests = total_exits * params.deposit_amount * params.deposit_amount_multiplier * amort_factor
+    else:
+        refund_requests = total_exits * params.deposit_amount * params.deposit_amount_multiplier * params.refund_percentage
 
     # 營運成本
     staff_count = total_occupied * params.staff_ratio
@@ -493,8 +530,61 @@ def simulation_step(state: SimState, params: SimParams, t: int,
     if params.location == 'suao':
         operating_cost *= params.suao_labor_premium
     operating_cost *= cost_inflation_multiplier
+    # v2: 醫療設施營運成本
+    operating_cost += params.medical_monthly_cost * 3
+    # v2: 體驗行銷成本
+    operating_cost += params.experience_monthly_cost * 3
+    # v2: 營運商分成
+    if params.operator_cost_share > 0:
+        operating_cost += monthly_fees * params.operator_cost_share
+    # v2: 法規合規成本
+    if t / 4 >= params.regulation_start_year:
+        operating_cost += params.compliance_cost_annual / 4
+    # v2: 行銷預算
+    operating_cost += params.marketing_budget_monthly * 3
+    # v2: 老化對抗成本
+    operating_cost += params.aging_countermeasure_cost * 3
 
+    # v2: 資本成本（利息）
+    quarterly_capital_cost = params.total_budget_twd * params.annual_cost_of_capital / 4
+    operating_cost += quarterly_capital_cost
+
+    # v2: 轉貸風險（每 5 年檢查一次）
+    if params.refinancing_risk and t > 0 and t % 20 == 0:
+        if rng.random() < 0.10:
+            params.annual_cost_of_capital = min(0.10, params.annual_cost_of_capital * 1.5)
+
+    # 其他收入
     other_revenue = params.other_revenue_monthly * 3
+    # v2: 溫泉對外營業收入
+    other_revenue += params.onsen_external_revenue * 3
+    # v2: 度假旅居收入
+    other_revenue += params.resort_revenue * 3
+    # v2: 醫療對外營業收入
+    if params.medical_external_revenue:
+        other_revenue += params.medical_integration * 5_000_000 * 3
+    # v2: 老化對抗措施額外收入
+    other_revenue += params.aging_countermeasure_revenue * 3
+    # v2: 多元收入流（帶爬坡期）
+    if hasattr(params, '_revenue_stream_configs'):
+        for stream_cfg in params._revenue_stream_configs:
+            quarters_active = t - stream_cfg.get('activation_quarter', 0)
+            if quarters_active < 0:
+                continue
+            ramp = min(1.0, quarters_active / max(1, stream_cfg.get('ramp_up_quarters', 4)))
+            rev = stream_cfg['monthly_revenue'] * ramp * 3
+            if stream_cfg.get('scales_with_occupancy'):
+                rev *= occupancy_rate
+            if stream_cfg.get('requires_brand_trust', 0) > state.brand_trust.value:
+                rev = 0
+            other_revenue += rev
+    # v2: H 會館客群導入（額外入住量，已在上面的 new_ins 裡處理）
+    if params.h_hotel_funnel_active:
+        h_hotel_quarterly = (params.h_hotel_annual_contacts
+                             * params.h_hotel_inquiry_rate
+                             * params.h_hotel_close_rate / 4)
+        # H 會館帶來的額外押金收入
+        other_revenue += h_hotel_quarterly * params.deposit_amount * params.deposit_amount_multiplier * 0.3  # 佔比估算
 
     construction_cost = get_construction_cost(state, params, t)
 
@@ -611,7 +701,7 @@ def run_simulation(params: SimParams, n_steps: int = 100,
         results['occupancy_rate'][t] = state.overall_occupancy_rate
         results['fund_pool_total'][t] = state.fund_pool.total
         results['brand_trust'][t] = state.brand_trust.value
-        results['brand_vitality'][t] = state.age_structure.brand_vitality_index
+        results['brand_vitality'][t] = state.age_structure.calc_brand_vitality(params.brand_vitality_decay_reduction)
         results['days_cash_on_hand'][t] = state.fund_pool.days_cash_on_hand
         results['run_rate_pressure'][t] = state.fund_pool.run_rate_pressure
         results['operating_cash'][t] = state.fund_pool.operating_cash
